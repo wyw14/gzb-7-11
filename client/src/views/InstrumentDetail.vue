@@ -52,6 +52,16 @@
                 <el-icon><ChatDotRound /></el-icon>
                 邀约主人练琴
               </el-button>
+              <el-button 
+                size="large" 
+                :disabled="isOwner" 
+                :type="isFavorited ? 'warning' : 'default'"
+                :loading="favoriteLoading"
+                @click="toggleFavorite"
+              >
+                <el-icon><Star v-if="isFavorited" :fill="isFavorited ? '#fff' : ''" /><Collection v-else /></el-icon>
+                {{ isFavorited ? '已收藏' : '收藏' }}
+              </el-button>
             </div>
           </div>
           
@@ -174,9 +184,9 @@
 import { ref, reactive, computed, onMounted, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
-import { instrumentApi, borrowApi, invitationApi, reviewApi } from '../api'
+import { instrumentApi, borrowApi, invitationApi, reviewApi, favoriteApi } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Goods, Medal, Location, Wallet, ChatDotRound, Document, User, Star, ChatLineSquare } from '@element-plus/icons-vue'
+import { Goods, Medal, Location, Wallet, ChatDotRound, Document, User, Star, ChatLineSquare, Collection } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -188,6 +198,8 @@ const ownerReviews = ref([])
 const showBorrow = ref(false)
 const showInvite = ref(false)
 const submitting = ref(false)
+const isFavorited = ref(false)
+const favoriteLoading = ref(false)
 
 const borrowForm = reactive({
   dates: null,
@@ -220,10 +232,41 @@ onMounted(async () => {
     inviteForm.value.instrument = instrument.value.category
     
     ownerReviews.value = await reviewApi.list({ revieweeId: instrument.value.ownerId, targetType: 'user' })
+    
+    if (userStore.isLoggedIn && !isOwner.value) {
+      try {
+        const favResult = await favoriteApi.check(route.params.id)
+        isFavorited.value = favResult.favorited
+      } catch (e) {}
+    }
   } catch (e) {
     ElMessage.error('加载失败')
   }
 })
+
+const toggleFavorite = async () => {
+  if (!userStore.isLoggedIn) {
+    requireLogin()
+    return
+  }
+  if (favoriteLoading.value) return
+  favoriteLoading.value = true
+  try {
+    if (isFavorited.value) {
+      await favoriteApi.remove(route.params.id)
+      isFavorited.value = false
+      ElMessage.success('已取消收藏')
+    } else {
+      await favoriteApi.add(route.params.id)
+      isFavorited.value = true
+      ElMessage.success('收藏成功')
+    }
+  } catch (e) {
+    ElMessage.error('操作失败')
+  } finally {
+    favoriteLoading.value = false
+  }
+}
 
 const submitBorrow = async () => {
   if (!userStore.isLoggedIn) {

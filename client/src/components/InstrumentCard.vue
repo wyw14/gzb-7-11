@@ -1,13 +1,21 @@
 <template>
-  <router-link :to="`/instruments/${instrument.id}`" class="instrument-card card">
-    <div class="instrument-image">
+  <div class="instrument-card card">
+    <div class="instrument-image" @click="goDetail">
       <img :src="instrument.image || defaultImage" :alt="instrument.name" />
       <span class="condition-badge" :class="conditionClass">{{ instrument.condition }}</span>
       <span v-if="instrument.status !== 'available'" class="status-badge borrowed">
         {{ instrument.status === 'borrowed' ? '借用中' : instrument.status === 'pending' ? '审核中' : '已下架' }}
       </span>
+      <button
+        v-if="userStore.isLoggedIn && !isOwner"
+        class="favorite-btn"
+        :class="{ favorited: isFavorited }"
+        @click.stop="toggleFavorite"
+      >
+        <el-icon :size="18"><Star v-if="isFavorited" :fill="'#f59e0b'" /><Star v-else /></el-icon>
+      </button>
     </div>
-    <div class="instrument-info">
+    <div class="instrument-info" @click="goDetail">
       <h3 class="instrument-name" :title="instrument.name">{{ instrument.name }}</h3>
       <div class="instrument-tags">
         <span class="tag tag-category">{{ instrument.category }}</span>
@@ -33,12 +41,16 @@
         <span>{{ instrument.location }}</span>
       </div>
     </div>
-  </router-link>
+  </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { Location } from '@element-plus/icons-vue'
+import { ref, computed, onMounted, inject } from 'vue'
+import { useRouter } from 'vue-router'
+import { useUserStore } from '../stores/user'
+import { favoriteApi } from '../api'
+import { Location, Star } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
 const props = defineProps({
   instrument: {
@@ -47,7 +59,16 @@ const props = defineProps({
   }
 })
 
+const router = useRouter()
+const userStore = useUserStore()
+const requireLogin = inject('requireLogin', () => router.push('/login'))
+
+const isFavorited = ref(false)
+const favoriteLoading = ref(false)
+
 const defaultImage = 'https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=400'
+
+const isOwner = computed(() => userStore.userId === props.instrument.ownerId)
 
 const conditionClass = computed(() => {
   const map = {
@@ -58,6 +79,43 @@ const conditionClass = computed(() => {
   }
   return map[props.instrument.condition] || 'normal'
 })
+
+onMounted(async () => {
+  if (userStore.isLoggedIn && !isOwner.value) {
+    try {
+      const result = await favoriteApi.check(props.instrument.id)
+      isFavorited.value = result.favorited
+    } catch (e) {}
+  }
+})
+
+const goDetail = () => {
+  router.push(`/instruments/${props.instrument.id}`)
+}
+
+const toggleFavorite = async () => {
+  if (!userStore.isLoggedIn) {
+    requireLogin()
+    return
+  }
+  if (favoriteLoading.value) return
+  favoriteLoading.value = true
+  try {
+    if (isFavorited.value) {
+      await favoriteApi.remove(props.instrument.id)
+      isFavorited.value = false
+      ElMessage.success('已取消收藏')
+    } else {
+      await favoriteApi.add(props.instrument.id)
+      isFavorited.value = true
+      ElMessage.success('收藏成功')
+    }
+  } catch (e) {
+    ElMessage.error('操作失败')
+  } finally {
+    favoriteLoading.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -65,6 +123,13 @@ const conditionClass = computed(() => {
   display: block;
   overflow: hidden;
   padding: 0;
+  cursor: pointer;
+  transition: box-shadow 0.3s, transform 0.3s;
+}
+
+.instrument-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
 }
 
 .instrument-image {
@@ -117,6 +182,40 @@ const conditionClass = computed(() => {
 .status-badge.borrowed {
   background: rgba(0, 0, 0, 0.7);
   color: white;
+}
+
+.favorite-btn {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s;
+  color: #9ca3af;
+  padding: 0;
+}
+
+.favorite-btn:hover {
+  background: white;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.favorite-btn.favorited {
+  color: #f59e0b;
+  background: #fffbeb;
+}
+
+.favorite-btn.favorited:hover {
+  background: #fef3c7;
 }
 
 .instrument-info {

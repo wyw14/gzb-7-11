@@ -68,4 +68,11 @@ export const recommendApi = {
   pieces: (userId) => api.get(`/recommendations/pieces/${userId}`)
 }
 
+export const favoriteApi = {
+  check: (instrumentId) => api.get(`/favorites/check/${instrumentId}`),
+  listByUser: (userId) => api.get(`/favorites/user/${userId}`),
+  add: (instrumentId) => api.post('/favorites', { instrumentId }),
+  remove: (instrumentId) => api.delete(`/favorites/${instrumentId}`)
+}
+
 export default api
