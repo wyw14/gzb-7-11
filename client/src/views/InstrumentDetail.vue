@@ -229,18 +229,18 @@ const disabledDate = (time) => {
 onMounted(async () => {
   try {
     instrument.value = await instrumentApi.get(route.params.id)
-    inviteForm.value.instrument = instrument.value.category
+    inviteForm.instrument = instrument.value.category
     
     ownerReviews.value = await reviewApi.list({ revieweeId: instrument.value.ownerId, targetType: 'user' })
-    
-    if (userStore.isLoggedIn && !isOwner.value) {
-      try {
-        const favResult = await favoriteApi.check(route.params.id)
-        isFavorited.value = favResult.favorited
-      } catch (e) {}
-    }
   } catch (e) {
     ElMessage.error('加载失败')
+  }
+  
+  if (userStore.isLoggedIn && !isOwner.value) {
+    try {
+      const favResult = await favoriteApi.check(route.params.id)
+      isFavorited.value = favResult.favorited
+    } catch (e) {}
   }
 })
 
